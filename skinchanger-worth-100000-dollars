@@ -1,0 +1,352 @@
+if not pcall(memory_read, "int", game.Address) then
+	pcall(notify, "UnsafeLua off!", "SC", 5);
+	return;
+end
+local mrd, mwr, pcall, ipairs, pairs = memory_read, memory_write, pcall, ipairs, pairs;
+local floor, byte, rnd = math.floor, string.byte, math.random;
+local rd = function(a)
+	local o, v = pcall(mrd, "uintptr_t", a);
+	return (o and v) or nil;
+end;
+local wr = function(a, v)
+	pcall(mwr, "uintptr_t", a, v);
+end;
+local r2;
+for i = 20, 1, -1 do
+	local o, r = pcall(readfile, "rivals_config (" .. i .. ").lua");
+	if (o and r and (#r > 0)) then
+		r2 = r;
+		break;
+	end
+end
+if not r2 then
+	local o, r = pcall(readfile, "rivals_config.lua");
+	if (o and r) then
+		r2 = r;
+	end
+end
+if not r2 then
+	pcall(notify, "No config!", "SC", 5);
+	return;
+end
+local en = {};
+for l in r2:gmatch("[^\r\n]+") do
+	local q = l:find("=");
+	if q then
+		local w, s = l:sub(1, q - 1):match("^%s*(.-)%s*$"), l:sub(q + 1):match("^%s*(.-)%s*$");
+		if ((#w > 0) and (#s > 0)) then
+			en[#en + 1] = {w,s};
+		end
+	end
+end
+if (#en == 0) then
+	pcall(notify, "Empty config!", "SC", 5);
+	return;
+end
+task.spawn(function()
+	local pfx = function(n)
+		return n:lower():gsub("[%s%-'%.]+", "");
+	end;
+	local AL;
+	for i = 1, 30 do
+		pcall(function()
+			AL = game:GetService("ReplicatedStorage"):FindFirstChild("Modules") and game:GetService("ReplicatedStorage").Modules:FindFirstChild("AnimationLibrary");
+		end);
+		if AL then
+			break;
+		end
+		task.wait(1);
+	end
+	if not AL then
+		return;
+	end
+	local SC = AL:FindFirstChild("SoundCallbacks");
+	if not SC then
+		return;
+	end
+	local abn = {};
+	for _, c in ipairs(SC:GetChildren()) do
+		abn[c.Name] = c;
+	end
+	for _, e in ipairs(en) do
+		local wp, sp = pfx(e[1]), pfx(e[2]);
+		local spfx = wp .. "_" .. sp .. "_";
+		for name, inst in pairs(abn) do
+			if (name:sub(1, #spfx) == spfx) then
+				local di = abn[wp .. "_" .. name:sub(#spfx + 1)];
+				if di then
+					local a, b = mrd("uintptr_t", di.Address + 8), mrd("uintptr_t", inst.Address + 8);
+					if (a and b and (a ~= b)) then
+						mwr("uintptr_t", di.Address + 8, b);
+						mwr("uintptr_t", inst.Address + 8, a);
+					end
+				end
+			end
+		end
+	end
+end);
+local LP;
+repeat
+	task.wait(1);
+	LP = game:GetService("Players").LocalPlayer;
+until LP 
+if (game.GameId ~= 6035872082) then
+	return;
+end
+local OFF = {Parent=112,Children=120,Name=176};
+pcall(function()
+	local hs = game:GetService("HttpService");
+	local raw = game:HttpGet("https://imtheo.lol/Offsets/Offsets.json");
+	if (raw and (#raw > 100)) then
+		local o2 = hs:JSONDecode(raw).Offsets;
+		if (o2 and o2.Instance) then
+			if o2.Instance.Parent then
+				OFF.Parent = o2.Instance.Parent;
+				OFF.Children = o2.Instance.Parent + 8;
+			end
+			if o2.Instance.Name then
+				OFF.Name = o2.Instance.Name;
+			end
+		end
+	end
+end);
+local A, vm, wf, mi;
+repeat
+	task.wait(1);
+	pcall(function()
+		A = LP.PlayerScripts.Assets;
+		vm = A.ViewModels;
+		wf = vm.Weapons;
+		mi = A.Misc;
+	end);
+until wf 
+repeat
+	task.wait(1);
+until LP.Character 
+local tf, pf, PG = A:FindFirstChild("Throwables"), A:FindFirstChild("Projectiles"), LP:FindFirstChild("PlayerGui");
+local sc, aW, ff = {}, {}, function(p, n)
+	return p:FindFirstChild(n);
+end;
+for _, f in ipairs(vm:GetChildren()) do
+	if (f:IsA("Folder") and (f.Name ~= "Weapons")) then
+		for _, x in ipairs(f:GetChildren()) do
+			sc[x.Name] = x;
+		end
+	end
+end
+for _, w in ipairs(wf:GetChildren()) do
+	aW[w.Name] = w;
+end
+local IL, IS = {}, {};
+pcall(function()
+	local r = game:HttpGet("https://pastefy.app/M1BAZ3hi/raw");
+	if (not r or (#r < 100)) then
+		return;
+	end
+	local c;
+	for l in r:gmatch("[^\r\n]+") do
+		local w = l:match('%["(.-)"%]%s*=%s*{%s*$');
+		if w then
+			c = w;
+			IL[c] = {};
+		end
+		if c then
+			local n, id = l:match('Name%s*=%s*"(.-)".-Image%s*=%s*"(rbxassetid://.-)"');
+			if (n and id) then
+				IL[c][n] = id;
+				if (n == "Standard") then
+					IS[id] = c;
+				end
+			end
+		end
+	end
+end);
+local ga = function(f)
+	local n = rd(f.Address + OFF.Children);
+	if (not n or (n == 0)) then
+		return;
+	end
+	local b, e = rd(n), rd(n + 8);
+	if (b and e) then
+		return b, e;
+	end
+end;
+local fs = function(b, e, t)
+	if (not b or not e) then
+		return;
+	end
+	for i = 0, floor((e - b) / 16) - 1 do
+		local a = b + (i * 16);
+		if (rd(a) == t) then
+			return a;
+		end
+	end
+end;
+local function swc(parent, default, skin)
+	local b, e = ga(parent);
+	if not b then
+		return;
+	end
+	local sl = fs(b, e, default.Address);
+	if not sl then
+		return;
+	end
+	wr(skin.Address + OFF.Name, rd(default.Address + OFF.Name));
+	wr(skin.Address + OFF.Parent, parent.Address);
+	wr(sl, skin.Address);
+end
+local function swe(fn, cn, ba)
+	local f = ff(mi, fn);
+	if not f then
+		return;
+	end
+	local d, k = ff(f, ba or "Default"), ff(f, cn);
+	if (not d or not k) then
+		return;
+	end
+	if (cn == (ba or "Default")) then
+		return;
+	end
+	swc(f, d, k);
+end
+local S = {Snowglobe={SmokeClouds="Snowglobe"},["Emoji Cloud"]={SmokeClouds="Emoji Cloud"},Balance={SmokeClouds="Balance"},Eyeball={SmokeClouds="Eyeball"},Hourglass={SmokeClouds="Hourglass"},["Temporal Ray"]={FreezeEffects="Temporal"},["Bubble Ray"]={FreezeEffects="Bubble"},["Spider Ray"]={FreezeEffects="Cocoon"},["Wrapped Freeze Ray"]={FreezeEffects="Wrapped"},["Gum Ray"]={FreezeEffects="Gum"},["Pixel Flamethrower"]={BurningEffects="Pixel Flamethrower",FlamethrowerFlames="Pixel Flamethrower",FlamethrowerAirblasts="Pixel Flamethrower"},["Jack O'Thrower"]={BurningEffects="Jack O'Thrower",FlamethrowerFlames="Jack O'Thrower"},Keythrower={BurningEffects="Keythrower",FlamethrowerFlames="Keythrower",FlamethrowerAirblasts="Keythrower"},Snowblower={BurningEffects="Snowblower",FlamethrowerFlames="Snowblower"},Blobsaw={ChainsawParticles="Chainsaw"},Megaphone={WarHornEffects="Megaphone"},Trampoline={JumpPads="Trampoline"},["Bounce House"]={JumpPads="Bounce House"},["Shady Chicken Sandwich"]={JumpPads="Shady Chicken Sandwich"},["Glorious Jump Pad"]={JumpPads="Glorious Jump Pad"},["Spider Web"]={JumpPads="Spider Web"},["Jolly Man"]={JumpPads="Jolly Man"},["Electropunk Warper"]={Portals="Electropunk Warper"},["Experiment W4"]={Portals="Experiment W4"},["Glitter Warper"]={Portals="Glitter Warper"},["Frost Warper"]={Portals="Frost Warper"},["Arcane Warper"]={Portals="Arcane Warper"},["Hotel Bell"]={Portals="Hotel Bell"},["Experiment D15"]={Vortexes="Distortion"},["Cyber Distortion"]={Vortexes="Cyber Distortion"},Sleighstortion={Vortexes="Sleighstortion"},["Magma Distortion"]={Vortexes="Magma Distortion"},["Plasma Distortion"]={Vortexes="Plasma Distortion"},["Teleport Disc"]={BlipEffects="Teleport Disc"},Warpeye={BlipEffects="Warpeye"},["Evil Trident"]={_d="Evil Trident"},Saber={_d="Saber"},["Lightning Bolt"]={_d="Lightning Bolt"},["New Year Katana"]={_d="New Year Katana"},["Stellar Katana"]={_d="Stellar Katana"},["Pixel Katana"]={_d="Default",DeflectActiveEffects="Pixel Katana"},["Crystal Katana"]={_d="Crystal Katana"},Coffee={MolotovExplosionEffects="Coffee",BurningEffects="Coffee",FireHitboxes="Coffee"},["Vexed Candle"]={MolotovExplosionEffects="Vexed Candle",BurningEffects="Vexed Candle",FireHitboxes="Vexed Candle"},["Arch Molotov"]={BurningEffects="Arch Molotov",MolotovExplosionEffects="Arch Molotov",FireHitboxes="Arch Molotov"},["Lava Lamp"]={MolotovExplosionEffects="Lava Lamp",FireHitboxes="Lava Lamp"},["Hot Coals"]={FireHitboxes="Hot Coals"},["Arch Katana"]={_d="Arch Katana"},Keytana={_d="Keytana"},Rainbowthrower={BurningEffects="Rainbowthrower",FlamethrowerFlames="Rainbowthrower"},Glitterthrower={BurningEffects="Glitterthrower",FlamethrowerFlames="Glitterthrower"},["Electropunk Warpstone"]={BlipEffects="Electropunk Warpstone"},Warpstar={BlipEffects="Warpstar"},Warpbone={BlipEffects="Warpbone"},["Cyber Warpstone"]={BlipEffects="Cyber Warpstone"},Wondergun={_m="Wondergun"},Singularity={_m="Singularity"},["Midnight Festive Exogun"]={_m="Midnight Festive Exogun"},Repulsor={_m="Repulsor"},Extinguisher={BurningEffects="Extinguisher",FlamethrowerFlames="Extinguisher"}};
+local EX = {Wondergun="WondergunExplosionParticles",Singularity="SingularityExplosionParticles",["Midnight Festive Exogun"]="MidnightFestiveExogunExplosionParticles",Repulsor="RepulsorExplosionParticles",Exogourd="ExogourdExplosionParticles",["Ray Gun"]="RayGunExplosionParticles",Advanced="AdvancedExplosionParticles",["Cyber Distortion"]="CyberExplosionParticles",Sleighstortion="SleighstortionExplosionParticles",["Magma Distortion"]="MagmaDistortionExplosionParticles",["Plasma Distortion"]="PlasmaDistortionExplosionParticles",["Experiment D15"]="ExperimentD15ExplosionParticles",["Gum Ray"]="GumRayExplosionEffect",["Bubble Ray"]="BubbleRayExplosionEffect",["Spider Ray"]="SpiderRayExplosionEffect",["Temporal Ray"]="TemporalRayExplosionEffect",["Wrapped Freeze Ray"]="WrappedFreezeRayExplosionEffect"};
+local EXB = {Exogun="ExogunExplosionParticles",Distortion="DistortionExplosionParticles",["Freeze Ray"]="FreezeRayExplosionEffect"};
+local TH = {Flashbang=1,Grenade=1,Molotov=1,["Smoke Grenade"]=1,Satchel=1,Warpstone=1};
+local PR = {RPG=1,Bow=1,["Grenade Launcher"]=1,Slingshot=1,["Freeze Ray"]=1,Daggers=1,Crossbow=1,["Flare Gun"]=1,Distortion=1,Permafrost=1};
+local dp = {};
+for _, sv in {"Lighting","ReplicatedStorage","SoundService"} do
+	pcall(function()
+		for _, c in ipairs(game:GetService(sv):GetDescendants()) do
+			dp[#dp + 1] = c;
+		end
+	end);
+end
+pcall(function()
+	for _, c in ipairs(A:GetDescendants()) do
+		dp[#dp + 1] = c;
+	end
+end);
+local nd, of = #dp, {OFF.Parent,OFF.Children,OFF.Name,2552,2584,2592,2600,2608};
+local function ns()
+	if (nd == 0) then
+		return;
+	end
+	pcall(function()
+		local a = dp[rnd(1, nd)].Address + of[rnd(1, 8)];
+		local v = mrd("uintptr_t", a);
+		if v then
+			mwr("uintptr_t", a, v);
+		end
+	end);
+end
+local ops, ct = {}, 0;
+for _, e in ipairs(en) do
+	local w, s = e[1], e[2];
+	local wI, sI = aW[w], sc[s];
+	if (wI and sI) then
+		if ((w ~= "Satchel") and (w ~= "RPG")) then
+			ops[#ops + 1] = function()
+				swc(wf, wI, sI);
+				ct = ct + 1;
+			end;
+		end
+		local m = S[s];
+		if m then
+			for fn, cn in pairs(m) do
+				if (fn == "_d") then
+					ops[#ops + 1] = function()
+						swe("DeflectHitEffects", cn);
+						swe("DeflectActiveEffects", cn);
+						ct = ct + 1;
+					end;
+				elseif (fn == "_m") then
+					ops[#ops + 1] = function()
+						swe("MuzzleFlashes", cn, "Exogun");
+						ct = ct + 1;
+					end;
+				else
+					ops[#ops + 1] = function()
+						swe(fn, cn);
+						ct = ct + 1;
+					end;
+				end
+			end
+		end
+		local xn = EX[s];
+		local xb = EXB[w];
+		if (xn and xb) then
+			ops[#ops + 1] = function()
+				local sx, dx = ff(mi, xn), ff(mi, xb);
+				if (sx and dx) then
+					swc(mi, dx, sx);
+					ct = ct + 1;
+				end
+			end;
+		end
+		if (TH[w] and tf) then
+			local tb, ts = ff(tf, w), ff(tf, s);
+			if (tb and ts) then
+				ops[#ops + 1] = function()
+					swc(tf, tb, ts);
+					ct = ct + 1;
+				end;
+			end
+		end
+		if (PR[w] and pf) then
+			local pb, p2 = ff(pf, w), ff(pf, s);
+			if (pb and p2) then
+				ops[#ops + 1] = function()
+					swc(pf, pb, p2);
+					ct = ct + 1;
+				end;
+			end
+		end
+	end
+end
+local mff = ff(mi, "MuzzleFlashes");
+if mff then
+	local MFB = {Handgun="Hand Gun",Spray="Spray",Minigun="Minigun",["Energy Pistols"]="Energy Pistols",["Energy Rifle"]="Energy Rifle",["Paintball Gun"]="Paintball Gun",Crossbow="Crossbow",Warper="Warper",Permafrost="Permafrost"};
+	for _, e in ipairs(en) do
+		local w, s = e[1], e[2];
+		local mb = MFB[w];
+		if mb then
+			local md, mk = ff(mff, mb), ff(mff, s);
+			if (md and mk and (md ~= mk)) then
+				local a, b = mrd("uintptr_t", md.Address + 8), mrd("uintptr_t", mk.Address + 8);
+				if (a and b and (a ~= b)) then
+					ops[#ops + 1] = function()
+						mwr("uintptr_t", md.Address + 8, b);
+						mwr("uintptr_t", mk.Address + 8, a);
+						ct = ct + 1;
+					end;
+				end
+			end
+		end
+	end
+end
+local no = #ops;
+local sl = {};
+for i = 1, 200 do
+	sl[i] = 0;
+end
+if (no > 0) then
+	local pl = {};
+	for i = 1, no do
+		local p;
+		repeat
+			p = rnd(1, 200);
+		until not pl[p] 
+		pl[p] = true;
+		sl[p] = i;
+	end
+end
+for i = 1, 200 do
+	if (sl[i] ~= 0) then
+		ops[sl[i]]();
+	else
+		ns();
+	end
+end
+pcall(notify, ct .. " swaps!", "SC", 3);
+local SP = {["Pixel Sniper"]={"rbxassetid://18171031143","rbxassetid://18171045114"},Keyper={"rbxassetid://129335242148588","rbxassetid://81498448678518"}};
